@@ -69,6 +69,12 @@ public class FlowRule extends AbstractRule {
 
     /**
      * Reference resource in flow control with relevant resource or context.
+     *
+     * read_db 和 write_db 这两个资源分别代表数据库读写，
+     * 我们可以给 read_db 设置限流规则来达到写优先的目的：
+     * 设置 FlowRule.strategy 为 RuleConstant.RELATE 同时设置 FlowRule.ref_identity 为 write_db。
+     * 这样当写库操作过于频繁时，读数据的请求会被限流。
+     *
      */
     private String refResource;
 
