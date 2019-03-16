@@ -55,8 +55,14 @@ public class SimpleHttpCommandCenter implements CommandCenter {
     @SuppressWarnings("rawtypes")
     private static final Map<String, CommandHandler> handlerMap = new ConcurrentHashMap<String, CommandHandler>();
 
+    // 该线程服务由上层调用SimpleHttpCommandCenter的地方初始化(即SPI调用)
+    // executor名为sentinel-command-center-service-executor
     private ExecutorService executor = Executors.newSingleThreadExecutor(
-        new NamedThreadFactory("sentinel-command-center-executor"));
+            new NamedThreadFactory("sentinel-command-center-executor"));
+    // 初始化为10个线程的线程池，
+    // 由executor线程new一个thread，
+    // 再在这个new的thread中由executor去submit一个ServerThread
+    // (ServerThread名为sentinel-courier-server-accept-thread，该线程以10毫秒间隔死循环获取socket套接字，一旦获取到就交由bizExecutor去submit一个线程去处理这条请求)
     private ExecutorService bizExecutor;
 
     private ServerSocket socketReference;
@@ -73,15 +79,15 @@ public class SimpleHttpCommandCenter implements CommandCenter {
     public void start() throws Exception {
         int nThreads = Runtime.getRuntime().availableProcessors();
         this.bizExecutor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<Runnable>(10),
-            new NamedThreadFactory("sentinel-command-center-service-executor"),
-            new RejectedExecutionHandler() {
-                @Override
-                public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-                    CommandCenterLog.info("EventTask rejected");
-                    throw new RejectedExecutionException();
-                }
-            });
+                new ArrayBlockingQueue<Runnable>(10),
+                new NamedThreadFactory("sentinel-command-center-service-executor"),
+                new RejectedExecutionHandler() {
+                    @Override
+                    public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                        CommandCenterLog.info("EventTask rejected");
+                        throw new RejectedExecutionException();
+                    }
+                });
 
         Runnable serverInitTask = new Runnable() {
             int port;
@@ -184,9 +190,11 @@ public class SimpleHttpCommandCenter implements CommandCenter {
             while (true) {
                 Socket socket = null;
                 try {
+                    // 获取对应port的socket套接字
                     socket = this.serverSocket.accept();
                     setSocketSoTimeout(socket);
                     HttpEventTask eventTask = new HttpEventTask(socket);
+                    // 提交套接字任务(bizExecutor线程服务的线程池中取一个线程去做)
                     bizExecutor.submit(eventTask);
                 } catch (Exception e) {
                     CommandCenterLog.info("Server error", e);
@@ -244,5 +252,23 @@ public class SimpleHttpCommandCenter implements CommandCenter {
         if (socket != null) {
             socket.setSoTimeout(DEFAULT_SERVER_SO_TIMEOUT);
         }
+    }
+
+    public static void main(String[] args) {
+        while (true) {
+            try {
+                ServerSocket serverSocket = new ServerSocket(8080, 100);
+                Socket socket = serverSocket.accept();
+                System.out.println("success");
+            } catch (IOException e) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(30);
+                } catch (InterruptedException e1) {
+                    break;
+                }
+                e.printStackTrace();
+            }
+        }
+
     }
 }

@@ -42,6 +42,8 @@ public final class InitExecutor {
             return;
         }
         try {
+            // 实例化所有继承InitFunc.class的service
+            // InitExecutor.doInit()方法由Env.java的静态代码块调用
             ServiceLoader<InitFunc> loader = ServiceLoader.load(InitFunc.class);
             List<OrderWrapper> initList = new ArrayList<OrderWrapper>();
             for (InitFunc initFunc : loader) {
@@ -63,6 +65,7 @@ public final class InitExecutor {
         }
     }
 
+    // 根据 @InitOrder 来确定加载顺序，值越小，加载越早
     private static void insertSorted(List<OrderWrapper> list, InitFunc func) {
         int order = resolveOrder(func);
         int idx = 0;
@@ -74,6 +77,7 @@ public final class InitExecutor {
         list.add(idx, new OrderWrapper(order, func));
     }
 
+    // 解析加载顺序，默认为最后加载
     private static int resolveOrder(InitFunc func) {
         if (!func.getClass().isAnnotationPresent(InitOrder.class)) {
             return InitOrder.LOWEST_PRECEDENCE;

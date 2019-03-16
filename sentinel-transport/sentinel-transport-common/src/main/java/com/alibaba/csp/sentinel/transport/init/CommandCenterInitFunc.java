@@ -26,16 +26,20 @@ import com.alibaba.csp.sentinel.transport.CommandCenter;
 /**
  * @author Eric Zhao
  */
+// 控制初始化顺序
 @InitOrder(-1)
 public class CommandCenterInitFunc implements InitFunc {
 
     @Override
     public void init() throws Exception {
+        // SPI默认实例化"META-INF/services/"路径下所有继承CommandCenter.class的bean
+        // ps：CommandCenterInitFunc自己本身也是由InitExecutor.class的SPI实例化
         ServiceLoader<CommandCenter> loader = ServiceLoader.load(CommandCenter.class);
         Iterator<CommandCenter> iterator = loader.iterator();
         if (iterator.hasNext()) {
             CommandCenter commandCenter = iterator.next();
             if (iterator.hasNext()) {
+                // 只允许有一个command center
                 throw new IllegalStateException("Only single command center can be started");
             } else {
                 commandCenter.beforeStart();
